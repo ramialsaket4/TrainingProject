@@ -1,0 +1,7 @@
+# Vault storage files & local secrets
+vault/data/
+vault/file/
+.env
+*.key
+vault-keys.json
+vault/key

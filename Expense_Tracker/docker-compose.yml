@@ -1,0 +1,64 @@
+networks:
+  expense_net:
+    driver: bridge
+
+volumes:
+  db_data:
+  vault_data:
+
+services:
+  postgres_db:
+    image: postgres:15-alpine
+    container_name: expense_postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgrespassword
+      POSTGRES_DB: expense_tracker
+    ports:
+      - "5432:5432"
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d expense_tracker"]
+      interval: 3s
+      timeout: 5s
+      retries: 5
+    networks:
+      - expense_net
+
+  vault:
+    image: hashicorp/vault:1.5.0
+    container_name: vault_server
+    ports:
+      - "8200:8200"
+    environment:
+      VAULT_ADDR: "http://0.0.0.0:8200"
+      VAULT_DEV_ROOT_TOKEN_ID: "root"
+      VAULT_DEV_LISTEN_ADDRESS: "0.0.0.0:8200"
+    volumes:
+      - vault_data:/vault/file
+    cap_add:
+      - IPC_LOCK
+    networks:
+      - expense_net
+
+  backend:
+    image: ghcr.io/ramialsaket4/app-backend:latest
+    container_name: expense_backend
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app
+      - ./frontend:/frontend
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgrespassword@postgres_db:5432/expense_tracker
+      - VAULT_ADDR=http://vault:8200
+      - VAULT_TOKEN=root
+      - PYTHONPATH=/app
+    depends_on:
+      postgres_db:
+        condition: service_healthy
+      vault:
+        condition: service_started
+    networks:
+      - expense_net
